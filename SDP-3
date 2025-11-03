@@ -1,0 +1,450 @@
+import tkinter as tk
+from tkinter import messagebox
+import json
+import os
+from datetime import datetime
+
+USER_FILE = "users.json"
+
+
+def load_users():
+    if os.path.exists(USER_FILE):
+        with open(USER_FILE, "r") as f:
+            return json.load(f)
+    return {}
+
+def save_users(users):
+    with open(USER_FILE, "w") as f:
+        json.dump(users, f, indent=4)
+
+def register_user():
+    username = entry_username.get().strip()
+    password = entry_password.get().strip()
+    if not username or not password:
+        messagebox.showerror("Error", "Please fill all fields!")
+        return
+    if username in users:
+        messagebox.showerror("Error", "Username already exists!")
+        return
+    users[username] = {"password": password}
+    save_users(users)
+    messagebox.showinfo("Success", "Registration successful!")
+    switch_mode()
+
+def login_user():
+    global current_user
+    username = entry_username.get().strip()
+    password = entry_password.get().strip()
+    if username in users and users[username]["password"] == password:
+        current_user = username
+        messagebox.showinfo("Welcome", f"Logged in as {username}")
+        show_dashboard_window()
+    else:
+        messagebox.showerror("Error", "Invalid username or password!")
+
+def switch_mode():
+    if btn_switch["text"] == "Switch to Register":
+        btn_action.config(text="Register", command=register_user)
+        btn_switch.config(text="Switch to Login")
+        lbl_title.config(text="Register")
+    else:
+        btn_action.config(text="Login", command=login_user)
+        btn_switch.config(text="Switch to Register")
+        lbl_title.config(text="Login")
+
+def load_json(filename, default):
+    if os.path.exists(filename):
+        with open(filename, "r") as f:
+            return json.load(f)
+    return default
+
+def save_json(filename, data):
+    with open(filename, "w") as f:
+        json.dump(data, f, indent=4)
+
+
+def income_file_for_user(username):
+    return f"incomes_{username}.json"
+
+def expense_file_for_user(username):
+    return f"expenses_{username}.json"
+
+def goals_file_for_user(username):
+    return f"goals_{username}.json"
+
+def budgets_file_for_user(username):
+    return f"budgets_{username}.json"
+
+
+def add_income():
+    category = entry_category_income.get().strip()
+    amount = entry_amount_income.get().strip()
+    note = entry_note_income.get().strip()
+    date = entry_date_income.get().strip()
+
+    if not category or not amount:
+        messagebox.showerror("Error", "Please fill Category and Amount!")
+        return
+    try:
+        amount = float(amount)
+    except ValueError:
+        messagebox.showerror("Error", "Amount must be numeric!")
+        return
+    if not date:
+        date = datetime.now().strftime("%Y-%m-%d")
+    entry = {"category": category, "amount": amount, "date": date, "note": note}
+    incomes.append(entry)
+    save_json(income_file_for_user(current_user), incomes)
+    clear_income_fields()
+    show_incomes()
+    messagebox.showinfo("Success", "Income added!")
+
+def clear_income_fields():
+    entry_category_income.delete(0, tk.END)
+    entry_amount_income.delete(0, tk.END)
+    entry_note_income.delete(0, tk.END)
+    entry_date_income.delete(0, tk.END)
+
+def show_incomes():
+    listbox_income.delete(0, tk.END)
+    total = 0
+    for inc in incomes:
+        line = f"{inc['date']} | {inc['category']} | {inc['amount']} | {inc['note']}"
+        listbox_income.insert(tk.END, line)
+        total += inc['amount']
+    lbl_total_income.config(text=f"Total Income: {total:.2f}")
+
+
+def add_expense():
+    category = entry_category_expense.get().strip()
+    amount = entry_amount_expense.get().strip()
+    note = entry_note_expense.get().strip()
+    date = entry_date_expense.get().strip()
+
+    if not category or not amount:
+        messagebox.showerror("Error", "Please fill Category and Amount!")
+        return
+    try:
+        amount = float(amount)
+    except ValueError:
+        messagebox.showerror("Error", "Amount must be numeric!")
+        return
+    if not date:
+        date = datetime.now().strftime("%Y-%m-%d")
+    entry = {"category": category, "amount": amount, "date": date, "note": note}
+    expenses.append(entry)
+    save_json(expense_file_for_user(current_user), expenses)
+    clear_expense_fields()
+    show_expenses()
+    # Check budget after adding expense
+    check_budget_after_expense(category)
+    messagebox.showinfo("Success", "Expense added!")
+
+def clear_expense_fields():
+    entry_category_expense.delete(0, tk.END)
+    entry_amount_expense.delete(0, tk.END)
+    entry_note_expense.delete(0, tk.END)
+    entry_date_expense.delete(0, tk.END)
+
+def show_expenses():
+    listbox_expense.delete(0, tk.END)
+    total = 0
+    for exp in expenses:
+        line = f"{exp['date']} | {exp['category']} | {exp['amount']} | {exp['note']}"
+        listbox_expense.insert(tk.END, line)
+        total += exp['amount']
+    lbl_total_expense.config(text=f"Total Expense: {total:.2f}")
+
+
+def add_goal():
+    name = entry_goal_name.get().strip()
+    target = entry_goal_target.get().strip()
+    if not name or not target:
+        messagebox.showerror("Error", "Please fill Goal name and Target!")
+        return
+    try:
+        target = float(target)
+    except ValueError:
+        messagebox.showerror("Error", "Target must be numeric!")
+        return
+    goals.append({"name": name, "target": target, "saved": 0})
+    save_json(goals_file_for_user(current_user), goals)
+    entry_goal_name.delete(0, tk.END)
+    entry_goal_target.delete(0, tk.END)
+    show_goals()
+    messagebox.showinfo("Success", "Goal added!")
+
+def add_contribution():
+    amount = entry_contribution.get().strip()
+    if not amount:
+        messagebox.showerror("Error", "Enter contribution amount!")
+        return
+    try:
+        amount = float(amount)
+    except ValueError:
+        messagebox.showerror("Error", "Must be numeric!")
+        return
+    if len(goals) == 0:
+        messagebox.showinfo("Info", "No goals to contribute to.")
+        return
+    share = amount / len(goals)
+    for g in goals:
+        g["saved"] += share
+    save_json(goals_file_for_user(current_user), goals)
+    entry_contribution.delete(0, tk.END)
+    show_goals()
+    messagebox.showinfo("Success", f"Distributed {amount} equally to all goals!")
+
+def show_goals():
+    listbox_goals.delete(0, tk.END)
+    for g in goals:
+        progress = min((g["saved"] / g["target"] * 100) if g["target"] else 0, 100)
+        line = f"{g['name']} | Target: {g['target']} | Saved: {g['saved']} | {progress:.1f}%"
+        listbox_goals.insert(tk.END, line)
+
+
+def load_budgets():
+    return load_json(budgets_file_for_user(current_user), {})
+
+def save_budgets():
+    save_json(budgets_file_for_user(current_user), budgets)
+
+def add_or_update_budget():
+    cat = entry_budget_category.get().strip()
+    limit = entry_budget_limit.get().strip()
+    if not cat or not limit:
+        messagebox.showerror("Error", "Please fill Category and Limit!")
+        return
+    try:
+        limit = float(limit)
+    except ValueError:
+        messagebox.showerror("Error", "Limit must be numeric!")
+        return
+    budgets[cat] = limit
+    save_budgets()
+    entry_budget_category.delete(0, tk.END)
+    entry_budget_limit.delete(0, tk.END)
+    show_budgets()
+    messagebox.showinfo("Success", f"Budget set: {cat} = {limit:.2f} per month")
+
+def show_budgets():
+    listbox_budgets.delete(0, tk.END)
+    # compute spent per category for current month
+    spent = calculate_monthly_spent()
+    for cat, limit in budgets.items():
+        spent_amount = spent.get(cat, 0.0)
+        remaining = limit - spent_amount
+        line = f"{cat} | Limit: {limit:.2f} | Spent (this month): {spent_amount:.2f} | Remaining: {remaining:.2f}"
+        listbox_budgets.insert(tk.END, line)
+
+def calculate_monthly_spent():
+    """Return dict category -> total spent for expenses in current month (YYYY-MM)."""
+    now = datetime.now()
+    month_prefix = now.strftime("%Y-%m")
+    spent = {}
+    for e in expenses:
+        # expect date "YYYY-MM-DD"
+        d = e.get("date", "")
+        if d.startswith(month_prefix):
+            cat = e.get("category", "Uncategorized")
+            spent[cat] = spent.get(cat, 0.0) + float(e.get("amount", 0))
+    return spent
+
+def check_budget_after_expense(category_added):
+    # show warning if category exceeded its monthly budget
+    if category_added in budgets:
+        spent = calculate_monthly_spent()
+        spent_amount = spent.get(category_added, 0.0)
+        limit = budgets.get(category_added, 0.0)
+        if spent_amount > limit:
+            messagebox.showwarning("Budget Exceeded",
+                                   f"You have exceeded the monthly budget for '{category_added}'.\n"
+                                   f"Limit: {limit:.2f}, Spent this month: {spent_amount:.2f}")
+
+
+def show_dashboard_window():
+    global dashboard, incomes, expenses, goals, budgets
+    root.destroy()
+    dashboard = tk.Tk()
+    dashboard.title(f"SaveSmart - {current_user}'s Dashboard")
+    dashboard.geometry("650x520")
+
+    tk.Label(dashboard, text=f"Welcome {current_user}!", font=("Arial", 16)).pack(pady=10)
+    tk.Label(dashboard, text="Select a feature:", font=("Arial", 12)).pack(pady=5)
+
+    tk.Button(dashboard, text="Income Management", width=30, command=show_income_window).pack(pady=8)
+    tk.Button(dashboard, text="Expense Tracking", width=30, command=show_expense_window).pack(pady=8)
+    tk.Button(dashboard, text="Savings Goal Management", width=30, command=show_goal_window).pack(pady=8)
+    tk.Button(dashboard, text="Budget Planning", width=30, command=show_budget_window).pack(pady=8)
+    tk.Button(dashboard, text="Logout", width=30, command=logout_user).pack(pady=15)
+
+    incomes = load_json(income_file_for_user(current_user), [])
+    expenses = load_json(expense_file_for_user(current_user), [])
+    goals = load_json(goals_file_for_user(current_user), [])
+    budgets = load_budgets()
+
+    dashboard.mainloop()
+
+def show_income_window():
+    dashboard.destroy()
+    global entry_category_income, entry_amount_income, entry_date_income, entry_note_income, listbox_income, lbl_total_income
+    win = tk.Tk()
+    win.title("Income Management")
+    win.geometry("550x450")
+
+    tk.Label(win, text="Income Management", font=("Arial", 16)).pack(pady=10)
+    frame = tk.Frame(win)
+    frame.pack(pady=5)
+
+    tk.Label(frame, text="Category:").grid(row=0, column=0)
+    entry_category_income = tk.Entry(frame)
+    entry_category_income.grid(row=0, column=1)
+    tk.Label(frame, text="Amount:").grid(row=1, column=0)
+    entry_amount_income = tk.Entry(frame)
+    entry_amount_income.grid(row=1, column=1)
+    tk.Label(frame, text="Date:").grid(row=2, column=0)
+    entry_date_income = tk.Entry(frame)
+    entry_date_income.grid(row=2, column=1)
+    tk.Label(frame, text="Note:").grid(row=3, column=0)
+    entry_note_income = tk.Entry(frame)
+    entry_note_income.grid(row=3, column=1)
+
+    tk.Button(win, text="Add Income", width=15, command=add_income).pack(pady=10)
+    lbl_total_income = tk.Label(win, text="Total Income: 0.00", font=("Arial", 12))
+    lbl_total_income.pack()
+
+    listbox_income = tk.Listbox(win, width=70, height=12)
+    listbox_income.pack(pady=10)
+    tk.Button(win, text="Back", command=lambda: [win.destroy(), show_dashboard_window()]).pack(pady=5)
+    show_incomes()
+    win.mainloop()
+
+def show_expense_window():
+    dashboard.destroy()
+    global entry_category_expense, entry_amount_expense, entry_date_expense, entry_note_expense, listbox_expense, lbl_total_expense
+    win = tk.Tk()
+    win.title("Expense Tracking")
+    win.geometry("550x450")
+
+    tk.Label(win, text="Expense Tracking", font=("Arial", 16)).pack(pady=10)
+    frame = tk.Frame(win)
+    frame.pack(pady=5)
+
+    tk.Label(frame, text="Category:").grid(row=0, column=0)
+    entry_category_expense = tk.Entry(frame)
+    entry_category_expense.grid(row=0, column=1)
+    tk.Label(frame, text="Amount:").grid(row=1, column=0)
+    entry_amount_expense = tk.Entry(frame)
+    entry_amount_expense.grid(row=1, column=1)
+    tk.Label(frame, text="Date (YYYY-MM-DD):").grid(row=2, column=0)
+    entry_date_expense = tk.Entry(frame)
+    entry_date_expense.grid(row=2, column=1)
+    tk.Label(frame, text="Note:").grid(row=3, column=0)
+    entry_note_expense = tk.Entry(frame)
+    entry_note_expense.grid(row=3, column=1)
+
+    tk.Button(win, text="Add Expense", width=15, command=add_expense).pack(pady=10)
+    lbl_total_expense = tk.Label(win, text="Total Expense: 0.00", font=("Arial", 12))
+    lbl_total_expense.pack()
+
+    listbox_expense = tk.Listbox(win, width=70, height=12)
+    listbox_expense.pack(pady=10)
+    tk.Button(win, text="Back", command=lambda: [win.destroy(), show_dashboard_window()]).pack(pady=5)
+    show_expenses()
+    win.mainloop()
+
+def show_goal_window():
+    dashboard.destroy()
+    global entry_goal_name, entry_goal_target, entry_contribution, listbox_goals
+    win = tk.Tk()
+    win.title("Savings Goal Management")
+    win.geometry("600x450")
+
+    tk.Label(win, text="Savings Goal Management", font=("Arial", 16)).pack(pady=10)
+    frame = tk.Frame(win)
+    frame.pack(pady=5)
+
+    tk.Label(frame, text="Goal Name:").grid(row=0, column=0)
+    entry_goal_name = tk.Entry(frame)
+    entry_goal_name.grid(row=0, column=1)
+    tk.Label(frame, text="Target Amount:").grid(row=1, column=0)
+    entry_goal_target = tk.Entry(frame)
+    entry_goal_target.grid(row=1, column=1)
+
+    tk.Button(win, text="Add Goal", width=15, command=add_goal).pack(pady=5)
+
+    tk.Label(win, text="Auto Contribution:").pack()
+    entry_contribution = tk.Entry(win)
+    entry_contribution.pack()
+    tk.Button(win, text="Distribute Equally", width=20, command=add_contribution).pack(pady=5)
+
+    listbox_goals = tk.Listbox(win, width=70, height=12)
+    listbox_goals.pack(pady=10)
+    tk.Button(win, text="Back", command=lambda: [win.destroy(), show_dashboard_window()]).pack(pady=5)
+    show_goals()
+    win.mainloop()
+
+def show_budget_window():
+    dashboard.destroy()
+    global entry_budget_category, entry_budget_limit, listbox_budgets
+    win = tk.Tk()
+    win.title("Budget Planning (Monthly)")
+    win.geometry("700x500")
+
+    tk.Label(win, text="Budget Planning (Monthly)", font=("Arial", 16)).pack(pady=10)
+    frame = tk.Frame(win)
+    frame.pack(pady=5)
+
+    tk.Label(frame, text="Category:").grid(row=0, column=0)
+    entry_budget_category = tk.Entry(frame)
+    entry_budget_category.grid(row=0, column=1)
+    tk.Label(frame, text="Monthly Limit:").grid(row=1, column=0)
+    entry_budget_limit = tk.Entry(frame)
+    entry_budget_limit.grid(row=1, column=1)
+
+    tk.Button(win, text="Add / Update Budget", width=20, command=add_or_update_budget).pack(pady=8)
+
+    tk.Label(win, text="Budgets & This Month's Usage", font=("Arial", 12)).pack(pady=6)
+    listbox_budgets = tk.Listbox(win, width=90, height=15)
+    listbox_budgets.pack(pady=8)
+
+    tk.Button(win, text="Refresh", width=12, command=show_budgets).pack(pady=4)
+    tk.Button(win, text="Back", command=lambda: [win.destroy(), show_dashboard_window()]).pack(pady=6)
+    show_budgets()
+    win.mainloop()
+
+def logout_user():
+    dashboard.destroy()
+    messagebox.showinfo("Logout", f"Goodbye, {current_user}!")
+    show_login_window()
+
+
+def show_login_window():
+    global root, entry_username, entry_password, lbl_title, btn_action, btn_switch, users
+    root = tk.Tk()
+    root.title("SaveSmart - Login/Register")
+    root.geometry("350x250")
+
+    lbl_title = tk.Label(root, text="Login", font=("Arial", 16))
+    lbl_title.pack(pady=10)
+    tk.Label(root, text="Username").pack()
+    entry_username = tk.Entry(root)
+    entry_username.pack()
+    tk.Label(root, text="Password").pack()
+    entry_password = tk.Entry(root, show="*")
+    entry_password.pack()
+    btn_action = tk.Button(root, text="Login", width=15, command=login_user)
+    btn_action.pack(pady=10)
+    btn_switch = tk.Button(root, text="Switch to Register", command=switch_mode)
+    btn_switch.pack()
+    users = load_users()
+    root.mainloop()
+
+current_user = None
+users = load_users()
+
+incomes = []
+expenses = []
+goals = []
+budgets = {}
+show_login_window()
