@@ -1,0 +1,64 @@
+import tkinter as tk
+from tkinter import messagebox
+import json
+import os
+from datetime import datetime
+ 
+USER_FILE = "users.json"
+ 
+# ---------------- USER AUTHENTICATION ----------------
+def load_users():
+    if os.path.exists(USER_FILE):
+        with open(USER_FILE, "r") as f:
+            return json.load(f)
+    return {}
+ 
+def save_users(users):
+    with open(USER_FILE, "w") as f:
+        json.dump(users, f, indent=4)
+ 
+def register_user():
+    username = entry_username.get().strip()
+    password = entry_password.get().strip()
+    if not username or not password:
+        messagebox.showerror("Error", "Please fill all fields!")
+        return
+    if username in users:
+        messagebox.showerror("Error", "Username already exists!")
+        return
+    users[username] = {"password": password}
+    save_users(users)
+    messagebox.showinfo("Success", "Registration successful!")
+    switch_mode()
+ 
+def login_user():
+    global current_user
+    username = entry_username.get().strip()
+    password = entry_password.get().strip()
+    if username in users and users[username]["password"] == password:
+        current_user = username
+        messagebox.showinfo("Welcome", f"Logged in as {username}")
+        show_dashboard_window()
+    else:
+        messagebox.showerror("Error", "Invalid username or password!")
+ 
+def switch_mode():
+    if btn_switch["text"] == "Switch to Register":
+        btn_action.config(text="Register", command=register_user)
+        btn_switch.config(text="Switch to Login")
+        lbl_title.config(text="Register")
+    else:
+        btn_action.config(text="Login", command=login_user)
+        btn_switch.config(text="Switch to Register")
+        lbl_title.config(text="Login")
+ 
+# ---------------- GENERIC JSON HELPERS ----------------
+def load_json(filename, default):
+    if os.path.exists(filename):
+        with open(filename, "r") as f:
+            return json.load(f)
+    return default
+ 
+def save_json(filename, data):
+    with open(filename, "w") as f:
+        json.dump(data, f, indent=4)
